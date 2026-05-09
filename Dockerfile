@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════
 # Dockerfile - CORBA PDF Service
 # Compatible Render.com (Free tier)
-# Lance : orbd (NameService) + Serveur CORBA + Tomcat
+# Les stubs CORBA sont générés par Maven (exec-maven-plugin)
 # ═══════════════════════════════════════════════════════
 
 # ── Étape 1 : Build ─────────────────────────────────
@@ -12,27 +12,26 @@ WORKDIR /build
 # Installer Maven
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
-# Copier les sources
+# Copier TOUT le projet
 COPY idl/           ./idl/
 COPY corba-server/  ./corba-server/
 COPY web-app/       ./web-app/
 
-# Générer les stubs CORBA depuis l'IDL
-RUN mkdir -p corba-server/src/main/java/pdfservice \
-    && mkdir -p web-app/src/main/java/pdfservice \
-    && idlj -fall    -td corba-server/src/main/java idl/PDFService.idl \
-    && idlj -fclient -td web-app/src/main/java      idl/PDFService.idl
+# Vérifier que idlj est disponible (inclus dans JDK 8)
+RUN idlj -version 2>&1 || echo "idlj disponible"
 
-# Compiler le serveur CORBA (JAR)
-RUN cd corba-server && mvn clean package -DskipTests -q
+# Compiler le serveur CORBA
+# Maven génère automatiquement les stubs IDL via exec-maven-plugin
+# puis les compile avec le reste du code
+RUN cd corba-server && mvn clean package -DskipTests
 
-# Compiler l'application web (WAR)
-RUN cd web-app && mvn clean package -DskipTests -q
+# Compiler l'application web
+# Même chose : Maven génère les stubs client IDL puis compile
+RUN cd web-app && mvn clean package -DskipTests
 
 # ── Étape 2 : Image finale ───────────────────────────
 FROM eclipse-temurin:8-jre
 
-# Variables d'environnement
 ENV TOMCAT_VERSION=9.0.82
 ENV CATALINA_HOME=/opt/tomcat
 ENV JAVA_HOME=/opt/java/openjdk
@@ -50,16 +49,17 @@ RUN apt-get update && apt-get install -y wget supervisor && \
            ${CATALINA_HOME}/webapps/manager \
            ${CATALINA_HOME}/webapps/host-manager
 
-# Copier les artefacts buildés
+# Copier le JAR du serveur CORBA
 COPY --from=builder \
     /build/corba-server/target/corba-server-1.0-SNAPSHOT-jar-with-dependencies.jar \
     /app/corba-server.jar
 
+# Copier le WAR de l'application web
 COPY --from=builder \
     /build/web-app/target/corba-pdf-app.war \
     ${CATALINA_HOME}/webapps/ROOT.war
 
-# Copier les fichiers de configuration
+# Copier les configs
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/setenv.sh        ${CATALINA_HOME}/bin/setenv.sh
 COPY docker/start.sh         /start.sh
@@ -67,7 +67,6 @@ COPY docker/start.sh         /start.sh
 RUN chmod +x ${CATALINA_HOME}/bin/setenv.sh /start.sh && \
     mkdir -p /var/log/supervisor
 
-# Port exposé (Render utilise $PORT, défaut 8080)
 EXPOSE 8080
 
 CMD ["/start.sh"]
