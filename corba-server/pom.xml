@@ -13,6 +13,8 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Dossier où idlj génère les stubs -->
+        <idl.output.dir>${project.build.directory}/generated-sources/idl</idl.output.dir>
     </properties>
 
     <dependencies>
@@ -44,7 +46,52 @@
     </dependencies>
 
     <build>
+        <!-- Ajouter le dossier des stubs générés comme source -->
         <plugins>
+
+            <!-- 1. Générer les stubs CORBA depuis l'IDL AVANT la compilation -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-corba-stubs</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>idlj</executable>
+                            <arguments>
+                                <argument>-fall</argument>
+                                <argument>-td</argument>
+                                <argument>${idl.output.dir}</argument>
+                                <argument>${project.basedir}/../idl/PDFService.idl</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 2. Ajouter le dossier généré comme source Java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-idl-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>add-source</goal></goals>
+                        <configuration>
+                            <sources>
+                                <source>${idl.output.dir}</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 3. Créer le JAR exécutable avec toutes les dépendances -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -67,6 +114,7 @@
                     </execution>
                 </executions>
             </plugin>
+
         </plugins>
     </build>
 </project>
