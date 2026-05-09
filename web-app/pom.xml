@@ -13,6 +13,7 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <idl.output.dir>${project.build.directory}/generated-sources/idl</idl.output.dir>
     </properties>
 
     <dependencies>
@@ -35,7 +36,7 @@
             <version>1.2</version>
         </dependency>
 
-        <!-- JacORB CORBA (client) -->
+        <!-- JacORB CORBA (client stubs) -->
         <dependency>
             <groupId>org.jacorb</groupId>
             <artifactId>jacorb</artifactId>
@@ -91,11 +92,56 @@
     <build>
         <finalName>corba-pdf-app</finalName>
         <plugins>
+
+            <!-- 1. Générer les stubs client CORBA depuis IDL AVANT compilation -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-corba-client-stubs</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>idlj</executable>
+                            <arguments>
+                                <argument>-fclient</argument>
+                                <argument>-td</argument>
+                                <argument>${idl.output.dir}</argument>
+                                <argument>${project.basedir}/../idl/PDFService.idl</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 2. Ajouter le dossier des stubs comme source Java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.4.0</version>
+                <executions>
+                    <execution>
+                        <id>add-idl-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>add-source</goal></goals>
+                        <configuration>
+                            <sources>
+                                <source>${idl.output.dir}</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 3. Build WAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.3.2</version>
             </plugin>
+
         </plugins>
     </build>
 </project>
