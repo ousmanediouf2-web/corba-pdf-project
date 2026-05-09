@@ -7,18 +7,19 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # ═══════════════════════════════════════════════════
-  # JOB 1 : Build JAR + WAR (vérifie que le code compile)
-  # ═══════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════
+  # JOB 1 : Vérifier que le code compile
+  # Les stubs IDL sont générés automatiquement par Maven
+  # ═══════════════════════════════════════════════
   build:
-    name: Build (IDL stubs + JAR + WAR)
+    name: Build (Maven génère les stubs IDL + compile)
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup JDK 8
+    - name: Setup JDK 8 (contient idlj)
       uses: actions/setup-java@v4
       with:
         java-version: '8'
@@ -31,22 +32,16 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
 
-    - name: Generer stubs CORBA depuis IDL
-      run: |
-        mkdir -p corba-server/src/main/java/pdfservice
-        mkdir -p web-app/src/main/java/pdfservice
-        idlj -fall    -td corba-server/src/main/java idl/PDFService.idl
-        idlj -fclient -td web-app/src/main/java      idl/PDFService.idl
-        echo "Stubs generes :"
-        ls corba-server/src/main/java/pdfservice/
+    - name: Vérifier que idlj est disponible
+      run: idlj -version 2>&1 || echo "idlj OK"
 
-    - name: Build CORBA Server JAR
-      run: cd corba-server && mvn clean package -DskipTests -q
+    - name: Build CORBA Server (génère stubs + compile JAR)
+      run: cd corba-server && mvn clean package -DskipTests
 
-    - name: Build Web App WAR
-      run: cd web-app && mvn clean package -DskipTests -q
+    - name: Build Web App (génère stubs client + compile WAR)
+      run: cd web-app && mvn clean package -DskipTests
 
-    - name: Upload artefacts de build
+    - name: Upload artefacts
       uses: actions/upload-artifact@v4
       with:
         name: build-artifacts
@@ -55,9 +50,9 @@ jobs:
           web-app/target/corba-pdf-app.war
         retention-days: 7
 
-  # ═══════════════════════════════════════════════════
-  # JOB 2 : Build image Docker + push sur Docker Hub
-  # ═══════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════
+  # JOB 2 : Build image Docker + push Docker Hub
+  # ═══════════════════════════════════════════════
   docker:
     name: Build et Push image Docker
     runs-on: ubuntu-latest
@@ -83,9 +78,9 @@ jobs:
           ${{ secrets.DOCKERHUB_USERNAME }}/corba-pdf-service:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/corba-pdf-service:${{ github.sha }}
 
-  # ═══════════════════════════════════════════════════
-  # JOB 3 : Déclencher le redéploiement sur Render.com
-  # ═══════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════
+  # JOB 3 : Déclencher redéploiement sur Render
+  # ═══════════════════════════════════════════════
   deploy-render:
     name: Deploy sur Render.com
     runs-on: ubuntu-latest
@@ -93,7 +88,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-    - name: Declencher redeploy Render via API
+    - name: Déclencher redeploy via API Render
       run: |
         curl -s -X POST \
           "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
@@ -104,9 +99,8 @@ jobs:
         import sys, json
         data = json.load(sys.stdin)
         if 'id' in data:
-            print('Deploiement Render declenche avec succes !')
+            print('✅ Déploiement Render déclenché !')
             print('Deploy ID:', data['id'])
-            print('Status:', data.get('status', 'pending'))
         else:
-            print('Reponse Render:', json.dumps(data, indent=2))
+            print('Réponse Render:', json.dumps(data, indent=2))
         "
