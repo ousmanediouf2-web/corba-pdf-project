@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.pdfservice</groupId>
+    <parent>
+        <groupId>com.pdfservice</groupId>
+        <artifactId>corba-pdf-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+
     <artifactId>web-app</artifactId>
-    <version>1.0-SNAPSHOT</version>
     <packaging>war</packaging>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <idl.output.dir>${project.build.directory}/generated-sources/idl</idl.output.dir>
+        <idl.output>${project.build.directory}/generated-sources/idl</idl.output>
     </properties>
 
     <dependencies>
-        <!-- Servlet API -->
+        <!-- Web -->
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
@@ -36,7 +38,7 @@
             <version>1.2</version>
         </dependency>
 
-        <!-- JacORB CORBA (client stubs) -->
+        <!-- CORBA client -->
         <dependency>
             <groupId>org.jacorb</groupId>
             <artifactId>jacorb</artifactId>
@@ -55,14 +57,14 @@
             <version>4.11.1</version>
         </dependency>
 
-        <!-- Password hashing -->
+        <!-- Auth -->
         <dependency>
             <groupId>org.mindrot</groupId>
             <artifactId>jbcrypt</artifactId>
             <version>0.4</version>
         </dependency>
 
-        <!-- File upload -->
+        <!-- Upload fichiers -->
         <dependency>
             <groupId>commons-fileupload</groupId>
             <artifactId>commons-fileupload</artifactId>
@@ -73,34 +75,19 @@
             <artifactId>commons-io</artifactId>
             <version>2.13.0</version>
         </dependency>
-
-        <!-- JSON -->
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.10.1</version>
-        </dependency>
-
-        <!-- Logging -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.36</version>
-        </dependency>
     </dependencies>
 
     <build>
-        <finalName>corba-pdf-app</finalName>
+        <finalName>ROOT</finalName>
         <plugins>
-
-            <!-- 1. Générer les stubs client CORBA depuis IDL AVANT compilation -->
+            <!-- Étape 1 : générer les stubs client depuis IDL -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <executions>
                     <execution>
-                        <id>generate-corba-client-stubs</id>
+                        <id>idlj-client</id>
                         <phase>generate-sources</phase>
                         <goals><goal>exec</goal></goals>
                         <configuration>
@@ -108,7 +95,7 @@
                             <arguments>
                                 <argument>-fclient</argument>
                                 <argument>-td</argument>
-                                <argument>${idl.output.dir}</argument>
+                                <argument>${idl.output}</argument>
                                 <argument>${project.basedir}/../idl/PDFService.idl</argument>
                             </arguments>
                         </configuration>
@@ -116,32 +103,31 @@
                 </executions>
             </plugin>
 
-            <!-- 2. Ajouter le dossier des stubs comme source Java -->
+            <!-- Étape 2 : déclarer les stubs comme sources -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
                 <version>3.4.0</version>
                 <executions>
                     <execution>
-                        <id>add-idl-sources</id>
+                        <id>add-idl-source</id>
                         <phase>generate-sources</phase>
                         <goals><goal>add-source</goal></goals>
                         <configuration>
                             <sources>
-                                <source>${idl.output.dir}</source>
+                                <source>${idl.output}</source>
                             </sources>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
-            <!-- 3. Build WAR -->
+            <!-- Étape 3 : WAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.3.2</version>
             </plugin>
-
         </plugins>
     </build>
 </project>
