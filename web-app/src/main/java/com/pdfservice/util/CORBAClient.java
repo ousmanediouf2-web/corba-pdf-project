@@ -11,56 +11,42 @@ import java.util.Properties;
 public class CORBAClient {
 
     private static ORB orb;
-    private static PDFOperations pdfService;
-    private static final String CORBA_HOST = System.getProperty("corba.host", "localhost");
-    private static final String CORBA_PORT = System.getProperty("corba.port", "1050");
+    private static PDFOperations service;
 
-    public static synchronized PDFOperations getPDFService() {
-        if (pdfService == null) {
-            initCORBA();
-        }
-        return pdfService;
+    private static final String HOST = System.getProperty("corba.host", "localhost");
+    private static final String PORT = System.getProperty("corba.port", "1050");
+
+    public static synchronized PDFOperations getService() {
+        if (service == null) init();
+        return service;
     }
 
-    private static void initCORBA() {
+    private static void init() {
         try {
-            Properties props = new Properties();
-            props.put("org.omg.CORBA.ORBInitialHost", CORBA_HOST);
-            props.put("org.omg.CORBA.ORBInitialPort", CORBA_PORT);
-
-            orb = ORB.init(new String[]{}, props);
-
-            org.omg.CORBA.Object namingRef = orb.resolve_initial_references("NameService");
-            NamingContextExt ncRef = NamingContextExtHelper.narrow(namingRef);
-
-            org.omg.CORBA.Object ref = ncRef.resolve_str("PDFService");
-            pdfService = PDFOperationsHelper.narrow(ref);
-
-            System.out.println("✅ Connexion CORBA établie vers " + CORBA_HOST + ":" + CORBA_PORT);
+            Properties p = new Properties();
+            p.put("org.omg.CORBA.ORBInitialHost", HOST);
+            p.put("org.omg.CORBA.ORBInitialPort", PORT);
+            orb = ORB.init(new String[]{}, p);
+            org.omg.CORBA.Object ref = orb
+                .resolve_initial_references("NameService");
+            NamingContextExt nc = NamingContextExtHelper.narrow(ref);
+            service = PDFOperationsHelper.narrow(nc.resolve_str("PDFService"));
+            System.out.println("CORBA connecte " + HOST + ":" + PORT);
         } catch (Exception e) {
-            System.err.println("❌ Erreur connexion CORBA: " + e.getMessage());
-            pdfService = null;
+            System.err.println("CORBA erreur: " + e.getMessage());
+            service = null;
         }
     }
 
-    public static boolean isConnected() {
+    public static boolean isAlive() {
         try {
-            PDFOperations service = getPDFService();
-            if (service == null) return false;
-            String response = service.ping();
-            return response != null && !response.isEmpty();
+            PDFOperations s = getService();
+            return s != null && s.ping() != null;
         } catch (Exception e) {
-            pdfService = null; // Réinitialiser pour forcer reconnexion
+            service = null;
             return false;
         }
     }
 
-    public static void reset() {
-        pdfService = null;
-    }
-
-    // Convertir tableau de bytes Java en tableau pour CORBA (byte[])
-    public static byte[][] toCorbaByteArrayArray(byte[][] arrays) {
-        return arrays;
-    }
+    public static void reset() { service = null; }
 }
