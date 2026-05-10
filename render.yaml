@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: corba-pdf-service
+    runtime: java
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: mvn clean package -DskipTests
+    startCommand: >
+      java
+      -Dorg.omg.CORBA.ORBInitialHost=localhost
+      -Dorg.omg.CORBA.ORBInitialPort=1050
+      -DMONGODB_URI=$MONGODB_URI
+      -cp corba-server/target/corba-server-1.0-jar-with-dependencies.jar:$CATALINA_HOME/lib/*
+      -jar corba-server/target/corba-server-1.0-jar-with-dependencies.jar
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JAVA_VERSION
+        value: "8"
