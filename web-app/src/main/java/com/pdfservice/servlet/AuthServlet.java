@@ -5,123 +5,89 @@ import com.pdfservice.model.User;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import javax.servlet.http.*;
 import java.io.IOException;
 
 @WebServlet(urlPatterns = {"/login", "/logout", "/register"})
 public class AuthServlet extends HttpServlet {
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
         String path = req.getServletPath();
-
         if ("/logout".equals(path)) {
-            HttpSession session = req.getSession(false);
-            if (session != null) session.invalidate();
-            resp.sendRedirect(req.getContextPath() + "/login?msg=logout");
+            HttpSession s = req.getSession(false);
+            if (s != null) s.invalidate();
+            res.sendRedirect(req.getContextPath() + "/login?msg=logout");
             return;
         }
-
-        // Redirige vers dashboard si déjà connecté
-        HttpSession session = req.getSession(false);
-        if (session != null && session.getAttribute("user") != null) {
-            resp.sendRedirect(req.getContextPath() + "/dashboard");
+        HttpSession s = req.getSession(false);
+        if (s != null && s.getAttribute("user") != null) {
+            res.sendRedirect(req.getContextPath() + "/dashboard");
             return;
         }
-
-        if ("/register".equals(path)) {
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-        } else {
-            req.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(req, resp);
-        }
+        String page = "/register".equals(path) ? "/WEB-INF/pages/register.jsp"
+                                                : "/WEB-INF/pages/login.jsp";
+        req.getRequestDispatcher(page).forward(req, res);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+    protected void doPost(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        String path = req.getServletPath();
         req.setCharacterEncoding("UTF-8");
-
-        if ("/login".equals(path)) {
-            handleLogin(req, resp);
-        } else if ("/register".equals(path)) {
-            handleRegister(req, resp);
-        }
+        if ("/login".equals(req.getServletPath()))    login(req, res);
+        else                                          register(req, res);
     }
 
-    private void handleLogin(HttpServletRequest req, HttpServletResponse resp)
+    private void login(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        String username = req.getParameter("username");
-        String password = req.getParameter("password");
-
-        if (username == null || username.trim().isEmpty() ||
-            password == null || password.trim().isEmpty()) {
-            req.setAttribute("error", "Veuillez remplir tous les champs.");
-            req.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(req, resp);
+        String u = req.getParameter("username");
+        String p = req.getParameter("password");
+        if (u == null || u.isEmpty() || p == null || p.isEmpty()) {
+            req.setAttribute("error", "Remplissez tous les champs.");
+            req.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(req, res);
             return;
         }
-
-        User user = MongoDBDAO.authenticateUser(username.trim(), password);
-
+        User user = MongoDBDAO.authenticate(u.trim(), p);
         if (user == null) {
-            req.setAttribute("error", "Nom d'utilisateur ou mot de passe incorrect.");
-            req.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(req, resp);
+            req.setAttribute("error", "Identifiants incorrects.");
+            req.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(req, res);
             return;
         }
-
         HttpSession session = req.getSession(true);
         session.setAttribute("user", user);
-        session.setAttribute("userId", user.getId().toHexString());
+        session.setAttribute("userId", user.getId());
         session.setAttribute("username", user.getUsername());
-        session.setMaxInactiveInterval(3600); // 1 heure
-
-        resp.sendRedirect(req.getContextPath() + "/dashboard");
+        session.setMaxInactiveInterval(3600);
+        res.sendRedirect(req.getContextPath() + "/dashboard");
     }
 
-    private void handleRegister(HttpServletRequest req, HttpServletResponse resp)
+    private void register(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        String username = req.getParameter("username");
-        String email = req.getParameter("email");
-        String password = req.getParameter("password");
-        String confirmPassword = req.getParameter("confirmPassword");
-
-        // Validations
-        if (username == null || username.trim().length() < 3) {
-            req.setAttribute("error", "Le nom d'utilisateur doit avoir au moins 3 caractères.");
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-            return;
+        String u  = req.getParameter("username");
+        String e  = req.getParameter("email");
+        String p  = req.getParameter("password");
+        String p2 = req.getParameter("confirmPassword");
+        if (u == null || u.trim().length() < 3) {
+            req.setAttribute("error", "Username min. 3 caracteres.");
+            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, res); return;
         }
-
-        if (email == null || !email.contains("@")) {
-            req.setAttribute("error", "Adresse email invalide.");
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-            return;
+        if (e == null || !e.contains("@")) {
+            req.setAttribute("error", "Email invalide.");
+            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, res); return;
         }
-
-        if (password == null || password.length() < 6) {
-            req.setAttribute("error", "Le mot de passe doit avoir au moins 6 caractères.");
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-            return;
+        if (p == null || p.length() < 6) {
+            req.setAttribute("error", "Mot de passe min. 6 caracteres.");
+            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, res); return;
         }
-
-        if (!password.equals(confirmPassword)) {
-            req.setAttribute("error", "Les mots de passe ne correspondent pas.");
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-            return;
+        if (!p.equals(p2)) {
+            req.setAttribute("error", "Mots de passe differents.");
+            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, res); return;
         }
-
-        boolean created = MongoDBDAO.createUser(username.trim(), email.trim(), password);
-
-        if (!created) {
-            req.setAttribute("error", "Ce nom d'utilisateur ou cet email est déjà utilisé.");
-            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, resp);
-            return;
+        if (!MongoDBDAO.createUser(u.trim(), e.trim(), p)) {
+            req.setAttribute("error", "Username ou email deja utilise.");
+            req.getRequestDispatcher("/WEB-INF/pages/register.jsp").forward(req, res); return;
         }
-
-        resp.sendRedirect(req.getContextPath() + "/login?msg=registered");
+        res.sendRedirect(req.getContextPath() + "/login?msg=registered");
     }
 }

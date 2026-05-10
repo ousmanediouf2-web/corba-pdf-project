@@ -1,50 +1,37 @@
 package com.pdfservice.servlet;
 
 import com.pdfservice.dao.MongoDBDAO;
-import com.pdfservice.model.OperationHistory;
 import com.pdfservice.model.User;
 import com.pdfservice.util.CORBAClient;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import javax.servlet.http.*;
 import java.io.IOException;
-import java.util.List;
 
 @WebServlet(urlPatterns = {"/dashboard", "/history"})
 public class DashboardServlet extends HttpServlet {
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+    protected void doGet(HttpServletRequest req, HttpServletResponse res)
             throws ServletException, IOException {
-        // Vérification de la session
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("user") == null) {
-            resp.sendRedirect(req.getContextPath() + "/login");
+        HttpSession s = req.getSession(false);
+        if (s == null || s.getAttribute("user") == null) {
+            res.sendRedirect(req.getContextPath() + "/login");
             return;
         }
+        User user = (User) s.getAttribute("user");
+        String userId = user.getId();
 
-        User user = (User) session.getAttribute("user");
-        String userId = user.getId().toHexString();
-        String path = req.getServletPath();
+        req.setAttribute("corbaOk",  CORBAClient.isAlive());
+        req.setAttribute("totalOps", MongoDBDAO.countOps(userId));
 
-        if ("/history".equals(path)) {
-            List<OperationHistory> history = MongoDBDAO.getUserHistory(userId, 50);
-            req.setAttribute("history", history);
-            req.getRequestDispatcher("/WEB-INF/pages/history.jsp").forward(req, resp);
+        if ("/history".equals(req.getServletPath())) {
+            req.setAttribute("history", MongoDBDAO.getUserHistory(userId, 50));
+            req.getRequestDispatcher("/WEB-INF/pages/history.jsp").forward(req, res);
         } else {
-            // Dashboard
-            List<OperationHistory> recentOps = MongoDBDAO.getUserHistory(userId, 5);
-            long totalOps = MongoDBDAO.getUserOperationCount(userId);
-            boolean corbaConnected = CORBAClient.isConnected();
-
-            req.setAttribute("recentOps", recentOps);
-            req.setAttribute("totalOps", totalOps);
-            req.setAttribute("corbaConnected", corbaConnected);
-            req.getRequestDispatcher("/WEB-INF/pages/dashboard.jsp").forward(req, resp);
+            req.setAttribute("recentOps", MongoDBDAO.getUserHistory(userId, 5));
+            req.getRequestDispatcher("/WEB-INF/pages/dashboard.jsp").forward(req, res);
         }
     }
 }
