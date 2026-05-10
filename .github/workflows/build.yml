@@ -1,25 +1,18 @@
-name: Build & Deploy - CORBA PDF Service
+name: Build CORBA PDF Service
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
-  # ═══════════════════════════════════════════════
-  # JOB 1 : Vérifier que le code compile
-  # Les stubs IDL sont générés automatiquement par Maven
-  # ═══════════════════════════════════════════════
   build:
-    name: Build (Maven génère les stubs IDL + compile)
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Setup JDK 8 (contient idlj)
+    - name: Setup JDK 8
       uses: actions/setup-java@v4
       with:
         java-version: '8'
@@ -30,77 +23,18 @@ jobs:
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
 
-    - name: Vérifier que idlj est disponible
-      run: idlj -version 2>&1 || echo "idlj OK"
+    - name: Verifier que idlj est disponible
+      run: idlj -version 2>&1 || true
 
-    - name: Build CORBA Server (génère stubs + compile JAR)
-      run: cd corba-server && mvn clean package -DskipTests
-
-    - name: Build Web App (génère stubs client + compile WAR)
-      run: cd web-app && mvn clean package -DskipTests
+    - name: Build complet (stubs IDL + JAR + WAR)
+      run: mvn clean package -DskipTests
 
     - name: Upload artefacts
       uses: actions/upload-artifact@v4
       with:
         name: build-artifacts
         path: |
-          corba-server/target/corba-server-1.0-SNAPSHOT-jar-with-dependencies.jar
-          web-app/target/corba-pdf-app.war
+          corba-server/target/corba-server-1.0-jar-with-dependencies.jar
+          web-app/target/ROOT.war
         retention-days: 7
-
-  # ═══════════════════════════════════════════════
-  # JOB 2 : Build image Docker + push Docker Hub
-  # ═══════════════════════════════════════════════
-  docker:
-    name: Build et Push image Docker
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Login Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build et push image Docker
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/corba-pdf-service:latest
-          ${{ secrets.DOCKERHUB_USERNAME }}/corba-pdf-service:${{ github.sha }}
-
-  # ═══════════════════════════════════════════════
-  # JOB 3 : Déclencher redéploiement sur Render
-  # ═══════════════════════════════════════════════
-  deploy-render:
-    name: Deploy sur Render.com
-    runs-on: ubuntu-latest
-    needs: docker
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-    - name: Déclencher redeploy via API Render
-      run: |
-        curl -s -X POST \
-          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
-          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          -H "Content-Type: application/json" \
-          -d '{"clearCache": false}' \
-          | python3 -c "
-        import sys, json
-        data = json.load(sys.stdin)
-        if 'id' in data:
-            print('✅ Déploiement Render déclenché !')
-            print('Deploy ID:', data['id'])
-        else:
-            print('Réponse Render:', json.dumps(data, indent=2))
-        "
