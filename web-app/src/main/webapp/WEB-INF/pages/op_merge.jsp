@@ -1,169 +1,155 @@
-<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ page contentType="text/html;charset=UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%
-    request.setAttribute("currentPage", "merge");
-    request.setAttribute("username", session.getAttribute("username"));
-    request.setAttribute("corbaConnected", com.pdfservice.util.CORBAClient.isConnected());
-%>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fusion PDF - CORBA PDF Service</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
-</head>
-<body>
-<div class="app-layout">
-    <%@ include file="sidebar.jsp" %>
-    <div class="main-content">
-        <div class="topbar">
-            <div>
-                <div class="page-title">Fusion de PDF</div>
-                <div class="page-sub">Combinez plusieurs fichiers PDF en un seul document</div>
-            </div>
-        </div>
-        <div class="content-area">
-            <c:if test="${not empty error}">
-                <div class="alert alert-error">${error}</div>
-            </c:if>
-
-            <div class="card op-form">
-                <div class="card-title">
-                    📄 Sélectionnez les fichiers PDF à fusionner
-                </div>
-
-                <form method="post" action="${pageContext.request.contextPath}/pdf/merge"
-                      enctype="multipart/form-data" id="mergeForm">
-
-                    <div class="upload-zone" id="dropZone">
-                        <input type="file" name="files" accept=".pdf" multiple id="fileInput"
-                               onchange="handleFiles(this.files)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <p><strong>Cliquez</strong> ou glissez vos fichiers PDF ici</p>
-                        <p style="font-size:12px;margin-top:6px">Minimum 2 fichiers PDF · Max 50MB par fichier</p>
-                    </div>
-
-                    <div class="file-list" id="fileList"></div>
-
-                    <div style="margin-top:20px;display:flex;align-items:center;gap:12px">
-                        <button type="submit" class="btn btn-primary" id="submitBtn"
-                                style="width:auto;padding:10px 28px">
-                            <span class="btn-text">🔗 Fusionner les PDF</span>
-                            <div class="loading-spinner"></div>
-                        </button>
-                        <span id="fileCount" style="font-size:13px;color:var(--text-secondary)">
-                            Aucun fichier sélectionné
-                        </span>
-                    </div>
-
-                    <!-- Ordre des fichiers (drag to reorder hint) -->
-                    <p class="hint" style="margin-top:12px">
-                        💡 Les fichiers seront fusionnés dans l'ordre affiché. Supprimez et re-ajoutez pour changer l'ordre.
-                    </p>
-                </form>
-            </div>
-        </div>
+<% request.setAttribute("page","merge");
+   request.setAttribute("username",session.getAttribute("username")); %>
+<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8"><title>merge - CORBA PDF</title>
+<link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
+</head><body><div class="app">
+<%@ include file="sidebar.jsp" %>
+<div class="main">
+  <div class="topbar"><div>
+    <div class="page-title" id="ptitle"></div>
+    <div class="page-sub" id="psub"></div>
+  </div></div>
+  <div class="content">
+    <c:if test="${not empty error}"><div class="alert alert-error">${error}</div></c:if>
+    <div class="card" style="max-width:680px" id="formCard">
+      <div class="card-title" id="cardTitle"></div>
+      <!-- Form injected by JS -->
     </div>
-</div>
-
+  </div>
+</div></div>
 <script>
-    let selectedFiles = [];
+const OP = 'merge';
+const CONFIG = {
+  merge:    {title:'Fusion de PDF',          sub:'Combiner plusieurs PDF en un seul',  emoji:'📎', form:'merge'},
+  split:    {title:'Decoupage PDF',           sub:'Extraire une plage de pages',         emoji:'✂️', form:'split'},
+  extract:  {title:'Extraction de pages',     sub:'Selectionner des pages specifiques',  emoji:'📑', form:'pages', label:'Pages a extraire'},
+  delete:   {title:'Suppression de pages',    sub:'Supprimer des pages indesirables',    emoji:'🗑️', form:'pages', label:'Pages a supprimer'},
+  password: {title:'Mot de passe',            sub:'Proteger le PDF par mot de passe',   emoji:'🔒', form:'password'},
+  convert:  {title:'PDF vers Images',         sub:'Convertir chaque page en PNG',       emoji:'🖼️', form:'convert'},
+  text:     {title:'Extraction de texte',     sub:'Extraire le contenu textuel du PDF', emoji:'📝', form:'text'},
+  create:   {title:'Creer un PDF',            sub:'Generer un PDF depuis du texte',     emoji:'✨', form:'create'},
+};
+const c = CONFIG[OP];
+document.getElementById('ptitle').textContent   = c.emoji + ' ' + c.title;
+document.getElementById('psub').textContent     = c.sub;
+document.getElementById('cardTitle').textContent= c.emoji + ' ' + c.title;
 
-    function handleFiles(files) {
-        for (let f of files) {
-            if (f.type === 'application/pdf' || f.name.endsWith('.pdf')) {
-                selectedFiles.push(f);
-            }
-        }
-        renderFileList();
-        updateCount();
-    }
+const ctx = '${pageContext.request.contextPath}';
+const card = document.getElementById('formCard');
 
-    function renderFileList() {
-        const list = document.getElementById('fileList');
-        list.innerHTML = '';
-        selectedFiles.forEach((f, i) => {
-            const item = document.createElement('div');
-            item.className = 'file-item';
-            item.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
-                <span class="file-name">${f.name}</span>
-                <span class="file-size">${formatSize(f.size)}</span>
-                <button type="button" class="remove-btn" onclick="removeFile(${i})">×</button>
-            `;
-            list.appendChild(item);
-        });
-    }
+function uploadForm(multi) {
+  return `<form method="post" action="${ctx}/pdf/${OP}" enctype="multipart/form-data" id="f">
+    <div class="form-group"><label>Fichier(s) PDF *</label>
+    <div class="upload-zone" id="dz">
+      <input type="file" name="file${multi?'s':''}" accept=".pdf" ${multi?'multiple':''} required id="fi" onchange="showFiles(this.files)">
+      <div class="icon">📁</div>
+      <p><b>Cliquez</b> ou glissez vos PDF ici</p>
+      <p id="fn" style="font-size:12px;color:var(--text-s);margin-top:4px">Aucun fichier</p>
+    </div>
+    <div class="file-list" id="fl"></div></div>`;
+}
 
-    function removeFile(index) {
-        selectedFiles.splice(index, 1);
-        renderFileList();
-        updateCount();
-    }
+function submitBtn(label) {
+  return `<div style="margin-top:18px;display:flex;gap:10px">
+    <button type="submit" class="btn btn-primary" id="sb" style="width:auto;padding:10px 28px">
+      <span class="btn-text">${label}</span><div class="spin"></div></button>
+    <a href="${ctx}/dashboard" class="btn btn-secondary">← Retour</a>
+  </div></form>`;
+}
 
-    function updateCount() {
-        const count = selectedFiles.length;
-        document.getElementById('fileCount').textContent =
-            count === 0 ? 'Aucun fichier sélectionné' :
-            count === 1 ? '1 fichier sélectionné (min. 2 requis)' :
-            `${count} fichiers sélectionnés`;
-    }
+if (c.form === 'merge') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(true) +
+    '<p class="hint">Minimum 2 fichiers PDF. Ils seront fusionnes dans l\'ordre selectionne.</p>' +
+    submitBtn('📎 Fusionner'));
+} else if (c.form === 'split') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(false) +
+    `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="form-group"><label>Page debut *</label>
+        <input type="number" name="startPage" min="1" value="1" required></div>
+      <div class="form-group"><label>Page fin *</label>
+        <input type="number" name="endPage" min="1" value="5" required></div>
+    </div>` +
+    submitBtn('✂️ Decouper'));
+} else if (c.form === 'pages') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(false) +
+    `<div class="form-group"><label>${c.label} *</label>
+      <input type="text" name="pages" required placeholder="Ex: 1, 3, 5">
+      <p class="hint">Numeros de pages separes par des virgules</p>
+    </div>` +
+    submitBtn(c.emoji + ' Executer'));
+} else if (c.form === 'password') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(false) +
+    `<div class="form-group"><label>Mot de passe utilisateur *</label>
+      <input type="password" name="userPassword" required placeholder="Pour ouvrir le PDF"></div>
+    <div class="form-group"><label>Mot de passe proprietaire</label>
+      <input type="password" name="ownerPassword" placeholder="Optionnel - admin"></div>` +
+    submitBtn('🔒 Proteger'));
+} else if (c.form === 'convert') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(false) +
+    `<div class="form-group"><label>Resolution DPI : <b id="dv">150</b></label>
+      <input type="range" name="dpi" min="72" max="300" value="150" style="width:100%;margin-top:6px"
+        oninput="document.getElementById('dv').textContent=this.value"></div>
+    <div class="alert alert-info">Le resultat sera une archive ZIP contenant une image PNG par page.</div>` +
+    submitBtn('🖼️ Convertir'));
+} else if (c.form === 'text') {
+  card.insertAdjacentHTML('beforeend',
+    uploadForm(false) +
+    '<div class="alert alert-info">Le texte extrait sera affiche directement sur la page.</div>' +
+    submitBtn('📝 Extraire le texte'));
+} else if (c.form === 'create') {
+  card.innerHTML += `<form method="post" action="${ctx}/pdf/create" id="f">
+    <div class="form-group"><label>Titre *</label>
+      <input type="text" name="title" required placeholder="Titre du document"></div>
+    <div class="form-group"><label>Auteur</label>
+      <input type="text" name="author" placeholder="Nom de l\'auteur (optionnel)"></div>
+    <div class="form-group"><label>Contenu *</label>
+      <textarea name="content" required placeholder="Contenu du document..."></textarea></div>
+    <div style="margin-top:18px;display:flex;gap:10px">
+      <button type="submit" class="btn btn-primary" id="sb" style="width:auto;padding:10px 28px">
+        <span class="btn-text">✨ Generer PDF</span><div class="spin"></div></button>
+      <a href="${ctx}/dashboard" class="btn btn-secondary">← Retour</a>
+    </div></form>`;
+}
 
-    function formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-        return (bytes/(1024*1024)).toFixed(1) + ' MB';
-    }
-
-    // Drag & drop
-    const dropZone = document.getElementById('dropZone');
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
+function showFiles(files) {
+  const fn = document.getElementById('fn');
+  const fl = document.getElementById('fl');
+  if (!fn) return;
+  fn.textContent = files.length + ' fichier(s) selectionne(s)';
+  if (fl) {
+    fl.innerHTML = '';
+    Array.from(files).forEach(f => {
+      const sz = f.size < 1048576 ? (f.size/1024).toFixed(1)+' KB' : (f.size/1048576).toFixed(1)+' MB';
+      fl.insertAdjacentHTML('beforeend',
+        `<div class="file-item"><span>📄</span><span class="fname">${f.name}</span>
+          <span class="fsize">${sz}</span></div>`);
     });
+  }
+}
 
-    // Submit - rebuild FormData with selected files
-    document.getElementById('mergeForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        if (selectedFiles.length < 2) {
-            alert('Veuillez sélectionner au moins 2 fichiers PDF.');
-            return;
-        }
-        const btn = document.getElementById('submitBtn');
-        btn.classList.add('loading');
-        btn.disabled = true;
+// Drag & drop
+const dz = document.getElementById('dz');
+if (dz) {
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('over');
+    showFiles(e.dataTransfer.files);
+  });
+}
 
-        const formData = new FormData();
-        selectedFiles.forEach(f => formData.append('files', f));
-
-        fetch('${pageContext.request.contextPath}/pdf/merge', {
-            method: 'POST',
-            body: formData
-        }).then(response => {
-            if (response.ok && response.headers.get('content-type') === 'application/pdf') {
-                return response.blob().then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'merged.pdf';
-                    a.click();
-                    btn.classList.remove('loading');
-                    btn.disabled = false;
-                });
-            } else {
-                return response.text().then(t => { alert('Erreur: ' + t); btn.classList.remove('loading'); btn.disabled = false; });
-            }
-        }).catch(err => { alert('Erreur réseau: ' + err); btn.classList.remove('loading'); btn.disabled = false; });
-    });
+// Submit loading
+document.getElementById('f').addEventListener('submit', function() {
+  const sb = document.getElementById('sb');
+  sb.classList.add('loading'); sb.disabled = true;
+});
 </script>
-</body>
-</html>
+</body></html>
