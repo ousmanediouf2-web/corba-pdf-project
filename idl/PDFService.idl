@@ -1,72 +1,17 @@
 module pdfservice {
 
-    exception PDFException {
-        string message;
-    };
+    exception PDFException { string message; };
 
     interface PDFOperations {
-
-        // Fusion de plusieurs PDFs en un seul
-        sequence<octet> mergePDFs(
-            in sequence<sequence<octet>> pdfFiles,
-            in string outputFilename
-        ) raises (PDFException);
-
-        // Découpage d'un PDF : retourne les pages de startPage à endPage
-        sequence<octet> splitPDF(
-            in sequence<octet> pdfFile,
-            in long startPage,
-            in long endPage
-        ) raises (PDFException);
-
-        // Extraction de pages spécifiques
-        sequence<octet> extractPages(
-            in sequence<octet> pdfFile,
-            in sequence<long> pageNumbers
-        ) raises (PDFException);
-
-        // Suppression de pages
-        sequence<octet> deletePages(
-            in sequence<octet> pdfFile,
-            in sequence<long> pageNumbers
-        ) raises (PDFException);
-
-        // Ajout d'un mot de passe
-        sequence<octet> addPassword(
-            in sequence<octet> pdfFile,
-            in string userPassword,
-            in string ownerPassword
-        ) raises (PDFException);
-
-        // Conversion PDF -> Images (retourne un ZIP de PNG)
-        sequence<octet> convertToImages(
-            in sequence<octet> pdfFile,
-            in float dpi
-        ) raises (PDFException);
-
-        // Extraction du texte
-        string extractText(
-            in sequence<octet> pdfFile
-        ) raises (PDFException);
-
-        // Création d'un PDF depuis du texte
-        sequence<octet> createPDF(
-            in string title,
-            in string content,
-            in string author
-        ) raises (PDFException);
-
-        // Obtenir le nombre de pages
-        long getPageCount(
-            in sequence<octet> pdfFile
-        ) raises (PDFException);
-
-        // Vérifier que le serveur est en vie
+        sequence<octet> mergePDFs(in sequence<sequence<octet>> pdfFiles) raises (PDFException);
+        sequence<octet> splitPDF(in sequence<octet> pdfFile, in long startPage, in long endPage) raises (PDFException);
+        sequence<octet> extractPages(in sequence<octet> pdfFile, in sequence<long> pageNumbers) raises (PDFException);
+        sequence<octet> deletePages(in sequence<octet> pdfFile, in sequence<long> pageNumbers) raises (PDFException);
+        sequence<octet> addPassword(in sequence<octet> pdfFile, in string userPassword, in string ownerPassword) raises (PDFException);
+        sequence<octet> convertToImages(in sequence<octet> pdfFile, in float dpi) raises (PDFException);
+        string extractText(in sequence<octet> pdfFile) raises (PDFException);
+        sequence<octet> createPDF(in string title, in string content, in string author) raises (PDFException);
+        long getPageCount(in sequence<octet> pdfFile) raises (PDFException);
         string ping();
-    };
-
-    interface PDFServiceFactory {
-        PDFOperations createSession(in string userId);
-        void destroySession(in string userId);
     };
 };
