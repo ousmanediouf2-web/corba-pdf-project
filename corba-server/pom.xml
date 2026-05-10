@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.pdfservice</groupId>
+    <parent>
+        <groupId>com.pdfservice</groupId>
+        <artifactId>corba-pdf-parent</artifactId>
+        <version>1.0</version>
+    </parent>
+
     <artifactId>corba-server</artifactId>
-    <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Dossier où idlj génère les stubs -->
-        <idl.output.dir>${project.build.directory}/generated-sources/idl</idl.output.dir>
+        <idl.output>${project.build.directory}/generated-sources/idl</idl.output>
     </properties>
 
     <dependencies>
-        <!-- JacORB CORBA -->
         <dependency>
             <groupId>org.jacorb</groupId>
             <artifactId>jacorb</artifactId>
@@ -29,15 +29,11 @@
             <artifactId>jacorb-omgapi</artifactId>
             <version>3.9</version>
         </dependency>
-
-        <!-- Apache PDFBox -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>2.0.30</version>
         </dependency>
-
-        <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -46,17 +42,15 @@
     </dependencies>
 
     <build>
-        <!-- Ajouter le dossier des stubs générés comme source -->
         <plugins>
-
-            <!-- 1. Générer les stubs CORBA depuis l'IDL AVANT la compilation -->
+            <!-- Étape 1 : générer les stubs depuis l'IDL -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <executions>
                     <execution>
-                        <id>generate-corba-stubs</id>
+                        <id>idlj-generate</id>
                         <phase>generate-sources</phase>
                         <goals><goal>exec</goal></goals>
                         <configuration>
@@ -64,7 +58,7 @@
                             <arguments>
                                 <argument>-fall</argument>
                                 <argument>-td</argument>
-                                <argument>${idl.output.dir}</argument>
+                                <argument>${idl.output}</argument>
                                 <argument>${project.basedir}/../idl/PDFService.idl</argument>
                             </arguments>
                         </configuration>
@@ -72,26 +66,26 @@
                 </executions>
             </plugin>
 
-            <!-- 2. Ajouter le dossier généré comme source Java -->
+            <!-- Étape 2 : déclarer les stubs comme sources -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
                 <version>3.4.0</version>
                 <executions>
                     <execution>
-                        <id>add-idl-sources</id>
+                        <id>add-idl-source</id>
                         <phase>generate-sources</phase>
                         <goals><goal>add-source</goal></goals>
                         <configuration>
                             <sources>
-                                <source>${idl.output.dir}</source>
+                                <source>${idl.output}</source>
                             </sources>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
-            <!-- 3. Créer le JAR exécutable avec toutes les dépendances -->
+            <!-- Étape 3 : JAR avec toutes les dépendances -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -108,13 +102,11 @@
                 </configuration>
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
                         <phase>package</phase>
                         <goals><goal>single</goal></goals>
                     </execution>
                 </executions>
             </plugin>
-
         </plugins>
     </build>
 </project>
