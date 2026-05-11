@@ -17,19 +17,18 @@ RUN apt-get update && apt-get install -y wget && \
            /opt/tomcat/webapps/examples \
            /opt/tomcat/webapps/docs
 
-# ETAPE CRITIQUE : générer les stubs CORBA AVANT mvn
-RUN mkdir -p corba-server/src/main/java/pdfservice && \
-    mkdir -p web-app/src/main/java/pdfservice && \
-    idlj -fall    -td corba-server/src/main/java idl/PDFService.idl && \
-    idlj -fclient -td web-app/src/main/java      idl/PDFService.idl && \
-    echo "=== Stubs generes ===" && \
-    ls corba-server/src/main/java/pdfservice/
+# Créer les dossiers target AVANT mvn clean
+RUN mkdir -p corba-server/target/generated-sources/idl && \
+    mkdir -p web-app/target/generated-sources/idl
 
-# Maintenant compiler (les stubs existent déjà dans src/main/java)
-# On désactive exec-maven-plugin pour éviter qu'il regénère
-RUN mvn clean package -DskipTests \
-    -Dexec.skip=true \
-    -Dbuild-helper.skip=true
+# Générer les stubs dans target/ (mvn clean ne supprime pas ce qu'on génère ensuite)
+RUN idlj -fall    -td corba-server/target/generated-sources/idl idl/PDFService.idl && \
+    idlj -fclient -td web-app/target/generated-sources/idl      idl/PDFService.idl && \
+    echo "Stubs serveur:" && ls corba-server/target/generated-sources/idl/pdfservice/ && \
+    echo "Stubs client:"  && ls web-app/target/generated-sources/idl/pdfservice/
+
+# Compiler - Maven trouve les stubs via build-helper dans les pom.xml
+RUN mvn package -DskipTests
 
 # Copier le WAR dans Tomcat
 RUN cp web-app/target/ROOT.war /opt/tomcat/webapps/ROOT.war
@@ -45,7 +44,7 @@ java -cp /app/corba-server/target/corba-server-1.0-jar-with-dependencies.jar \\\
 sleep 5\n\
 export JAVA_OPTS="-Dcorba.host=localhost -Dcorba.port=1050 -DMONGODB_URI=$MONGODB_URI"\n\
 PORT=${PORT:-8080}\n\
-sed -i "s/port=\\"8080\\"/port=\\"$PORT\\"/g" /opt/tomcat/conf/server.xml\n\
+sed -i "s/port=\"8080\"/port=\"$PORT\"/g" /opt/tomcat/conf/server.xml\n\
 exec /opt/tomcat/bin/catalina.sh run\n' > /start.sh && chmod +x /start.sh
 
 EXPOSE 8080
