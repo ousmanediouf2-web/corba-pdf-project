@@ -14,12 +14,7 @@
     <artifactId>web-app</artifactId>
     <packaging>war</packaging>
 
-    <properties>
-        <idl.output>${project.build.directory}/generated-sources/idl</idl.output>
-    </properties>
-
     <dependencies>
-        <!-- Web -->
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
@@ -37,8 +32,6 @@
             <artifactId>jstl</artifactId>
             <version>1.2</version>
         </dependency>
-
-        <!-- CORBA client -->
         <dependency>
             <groupId>org.jacorb</groupId>
             <artifactId>jacorb</artifactId>
@@ -49,22 +42,16 @@
             <artifactId>jacorb-omgapi</artifactId>
             <version>3.9</version>
         </dependency>
-
-        <!-- MongoDB Atlas -->
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
             <version>4.11.1</version>
         </dependency>
-
-        <!-- Auth -->
         <dependency>
             <groupId>org.mindrot</groupId>
             <artifactId>jbcrypt</artifactId>
             <version>0.4</version>
         </dependency>
-
-        <!-- Upload fichiers -->
         <dependency>
             <groupId>commons-fileupload</groupId>
             <artifactId>commons-fileupload</artifactId>
@@ -79,50 +66,8 @@
 
     <build>
         <finalName>ROOT</finalName>
+        <!-- Les stubs client sont générés par idlj dans le Dockerfile AVANT mvn -->
         <plugins>
-            <!-- Étape 1 : générer les stubs client depuis IDL -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>idlj-client</id>
-                        <phase>generate-sources</phase>
-                        <goals><goal>exec</goal></goals>
-                        <configuration>
-                            <executable>idlj</executable>
-                            <arguments>
-                                <argument>-fclient</argument>
-                                <argument>-td</argument>
-                                <argument>${idl.output}</argument>
-                                <argument>${project.basedir}/../idl/PDFService.idl</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Étape 2 : déclarer les stubs comme sources -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.4.0</version>
-                <executions>
-                    <execution>
-                        <id>add-idl-source</id>
-                        <phase>generate-sources</phase>
-                        <goals><goal>add-source</goal></goals>
-                        <configuration>
-                            <sources>
-                                <source>${idl.output}</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Étape 3 : WAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
