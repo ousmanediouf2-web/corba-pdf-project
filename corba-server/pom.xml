@@ -14,10 +14,6 @@
     <artifactId>corba-server</artifactId>
     <packaging>jar</packaging>
 
-    <properties>
-        <idl.output>${project.build.directory}/generated-sources/idl</idl.output>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.jacorb</groupId>
@@ -42,50 +38,9 @@
     </dependencies>
 
     <build>
+        <!-- Les stubs sont générés par idlj dans le Dockerfile AVANT mvn -->
+        <!-- Donc src/main/java contient déjà pdfservice/ au moment de la compilation -->
         <plugins>
-            <!-- Étape 1 : générer les stubs depuis l'IDL -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>idlj-generate</id>
-                        <phase>generate-sources</phase>
-                        <goals><goal>exec</goal></goals>
-                        <configuration>
-                            <executable>idlj</executable>
-                            <arguments>
-                                <argument>-fall</argument>
-                                <argument>-td</argument>
-                                <argument>${idl.output}</argument>
-                                <argument>${project.basedir}/../idl/PDFService.idl</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Étape 2 : déclarer les stubs comme sources -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.4.0</version>
-                <executions>
-                    <execution>
-                        <id>add-idl-source</id>
-                        <phase>generate-sources</phase>
-                        <goals><goal>add-source</goal></goals>
-                        <configuration>
-                            <sources>
-                                <source>${idl.output}</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <!-- Étape 3 : JAR avec toutes les dépendances -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
