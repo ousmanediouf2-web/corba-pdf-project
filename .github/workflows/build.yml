@@ -24,11 +24,11 @@ jobs:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
 
-    - name: Verifier que idlj est disponible
-      run: idlj -version 2>&1 || true
+    - name: Build corba-server
+      run: cd corba-server && mvn clean package -DskipTests
 
-    - name: Build complet (stubs IDL + JAR + WAR)
-      run: mvn clean package -DskipTests
+    - name: Build web-app
+      run: cd web-app && mvn clean package -DskipTests
 
     - name: Upload artefacts
       uses: actions/upload-artifact@v4
