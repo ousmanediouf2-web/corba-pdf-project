@@ -1,14 +1,4 @@
 package pdfservice;
 
-public interface PDFOperations extends org.omg.CORBA.Object, org.omg.CORBA.portable.IDLEntity {
-    byte[] mergePDFs(byte[][] pdfFiles) throws PDFException;
-    byte[] splitPDF(byte[] pdfFile, int startPage, int endPage) throws PDFException;
-    byte[] extractPages(byte[] pdfFile, int[] pageNumbers) throws PDFException;
-    byte[] deletePages(byte[] pdfFile, int[] pageNumbers) throws PDFException;
-    byte[] addPassword(byte[] pdfFile, String userPassword, String ownerPassword) throws PDFException;
-    byte[] convertToImages(byte[] pdfFile, float dpi) throws PDFException;
-    String extractText(byte[] pdfFile) throws PDFException;
-    byte[] createPDF(String title, String content, String author) throws PDFException;
-    int getPageCount(byte[] pdfFile) throws PDFException;
-    String ping();
+public interface PDFOperations extends PDFOperationsOperations, org.omg.CORBA.Object, org.omg.CORBA.portable.IDLEntity {
 }
