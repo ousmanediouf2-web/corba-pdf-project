@@ -2,10 +2,8 @@ FROM maven:3.9-eclipse-temurin-8
 
 WORKDIR /app
 
-COPY idl/          ./idl/
-COPY corba-server/ ./corba-server/
-COPY web-app/      ./web-app/
-COPY pom.xml       ./pom.xml
+# Copier tout le projet (stubs déjà inclus dans src/main/java/pdfservice/)
+COPY . .
 
 # Installer Tomcat
 RUN apt-get update && apt-get install -y wget && \
@@ -17,20 +15,10 @@ RUN apt-get update && apt-get install -y wget && \
            /opt/tomcat/webapps/examples \
            /opt/tomcat/webapps/docs
 
-# Créer les dossiers target AVANT mvn clean
-RUN mkdir -p corba-server/target/generated-sources/idl && \
-    mkdir -p web-app/target/generated-sources/idl
+# Compiler directement - les stubs sont déjà dans src/main/java/pdfservice/
+RUN mvn clean package -DskipTests
 
-# Générer les stubs dans target/ (mvn clean ne supprime pas ce qu'on génère ensuite)
-RUN idlj -fall    -td corba-server/target/generated-sources/idl idl/PDFService.idl && \
-    idlj -fclient -td web-app/target/generated-sources/idl      idl/PDFService.idl && \
-    echo "Stubs serveur:" && ls corba-server/target/generated-sources/idl/pdfservice/ && \
-    echo "Stubs client:"  && ls web-app/target/generated-sources/idl/pdfservice/
-
-# Compiler - Maven trouve les stubs via build-helper dans les pom.xml
-RUN mvn package -DskipTests
-
-# Copier le WAR dans Tomcat
+# Déployer le WAR dans Tomcat
 RUN cp web-app/target/ROOT.war /opt/tomcat/webapps/ROOT.war
 
 # Script de démarrage

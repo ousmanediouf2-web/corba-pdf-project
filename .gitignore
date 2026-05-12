@@ -9,3 +9,6 @@ orb.db/
 .vscode/
 .DS_Store
 Thumbs.db
+# NE PAS ignorer les stubs CORBA - ils sont versionnés dans src/
+# !corba-server/src/main/java/pdfservice/
+# !web-app/src/main/java/pdfservice/
