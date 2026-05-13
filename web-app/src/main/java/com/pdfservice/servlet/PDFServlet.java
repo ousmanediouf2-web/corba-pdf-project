@@ -24,6 +24,7 @@ public class PDFServlet extends HttpServlet {
         if (!checkSession(req, res)) return;
         String op = getOp(req);
         req.setAttribute("corbaOk", CORBAClient.isAlive());
+        req.setAttribute("username", req.getSession().getAttribute("username"));
         req.getRequestDispatcher("/WEB-INF/pages/op_" + op + ".jsp").forward(req, res);
     }
 
@@ -34,7 +35,7 @@ public class PDFServlet extends HttpServlet {
 
         PDFOperations svc = CORBAClient.getService();
         if (svc == null) {
-            error(req, res, "Serveur CORBA non disponible.");
+            error(req, res, "Serveur CORBA non disponible. Veuillez réessayer.");
             return;
         }
 
@@ -65,14 +66,23 @@ public class PDFServlet extends HttpServlet {
         List<FileItem> items = parse(req);
         List<byte[]> pdfs = new ArrayList<>();
         List<String> names = new ArrayList<>();
-        for (FileItem i : items)
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) {
-                pdfs.add(i.get()); names.add(i.getName());
+
+        // Récupérer tous les fichiers nommés "files"
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdfs.add(item.get());
+                names.add(item.getName());
             }
-        if (pdfs.size() < 2) throw new Exception("Minimum 2 fichiers PDF requis.");
+        }
+
+        if (pdfs.size() < 2) {
+            error(req, res, "Veuillez sélectionner 2 fichiers PDF.");
+            return;
+        }
+
         long t = System.currentTimeMillis();
         byte[] result = svc.mergePDFs(pdfs.toArray(new byte[0][]));
-        saveHistory(user, "merge", String.join(", ", names), "merged.pdf",
+        saveHistory(user, "merge", String.join(" + ", names), "merged.pdf",
                     System.currentTimeMillis() - t);
         sendPDF(res, result, "merged.pdf");
     }
@@ -82,28 +92,42 @@ public class PDFServlet extends HttpServlet {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf";
         int start = 1, end = 1;
-        for (FileItem i : items) {
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-            else if ("startPage".equals(i.getFieldName())) start = Integer.parseInt(i.getString());
-            else if ("endPage".equals(i.getFieldName()))   end   = Integer.parseInt(i.getString());
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            } else if (item.isFormField()) {
+                if ("startPage".equals(item.getFieldName()))
+                    start = Integer.parseInt(item.getString().trim());
+                else if ("endPage".equals(item.getFieldName()))
+                    end   = Integer.parseInt(item.getString().trim());
+            }
         }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+
         long t = System.currentTimeMillis();
         byte[] result = svc.splitPDF(pdf, start, end);
-        saveHistory(user, "split", name, "split_p" + start + "_p" + end + ".pdf",
-                    System.currentTimeMillis() - t);
-        sendPDF(res, result, "split.pdf");
+        saveHistory(user, "split", name, "split.pdf", System.currentTimeMillis() - t);
+        sendPDF(res, result, "split_p" + start + "_" + end + ".pdf");
     }
 
     private void doExtract(HttpServletRequest req, HttpServletResponse res,
                             PDFOperations svc, User user) throws Exception {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf", pages = "";
-        for (FileItem i : items) {
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-            else if ("pages".equals(i.getFieldName())) pages = i.getString();
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            } else if ("pages".equals(item.getFieldName())) {
+                pages = item.getString().trim();
+            }
         }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+        if (pages.isEmpty()) { error(req, res, "Veuillez entrer les numéros de pages."); return; }
+
         long t = System.currentTimeMillis();
         byte[] result = svc.extractPages(pdf, parsePages(pages));
         saveHistory(user, "extract", name, "extracted.pdf", System.currentTimeMillis() - t);
@@ -114,11 +138,18 @@ public class PDFServlet extends HttpServlet {
                            PDFOperations svc, User user) throws Exception {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf", pages = "";
-        for (FileItem i : items) {
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-            else if ("pages".equals(i.getFieldName())) pages = i.getString();
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            } else if ("pages".equals(item.getFieldName())) {
+                pages = item.getString().trim();
+            }
         }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+        if (pages.isEmpty()) { error(req, res, "Veuillez entrer les numéros de pages."); return; }
+
         long t = System.currentTimeMillis();
         byte[] result = svc.deletePages(pdf, parsePages(pages));
         saveHistory(user, "delete", name, "cleaned.pdf", System.currentTimeMillis() - t);
@@ -129,14 +160,18 @@ public class PDFServlet extends HttpServlet {
                              PDFOperations svc, User user) throws Exception {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf", up = "", op = "";
-        for (FileItem i : items) {
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-            else if ("userPassword".equals(i.getFieldName()))  up = i.getString();
-            else if ("ownerPassword".equals(i.getFieldName())) op = i.getString();
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            } else if ("userPassword".equals(item.getFieldName()))  up = item.getString();
+              else if ("ownerPassword".equals(item.getFieldName())) op = item.getString();
         }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
-        if (up.isEmpty()) throw new Exception("Mot de passe requis.");
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+        if (up.isEmpty()) { error(req, res, "Le mot de passe utilisateur est requis."); return; }
         if (op.isEmpty()) op = up;
+
         long t = System.currentTimeMillis();
         byte[] result = svc.addPassword(pdf, up, op);
         saveHistory(user, "password", name, "protected.pdf", System.currentTimeMillis() - t);
@@ -147,14 +182,21 @@ public class PDFServlet extends HttpServlet {
                             PDFOperations svc, User user) throws Exception {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf"; float dpi = 150f;
-        for (FileItem i : items) {
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-            else if ("dpi".equals(i.getFieldName())) dpi = Float.parseFloat(i.getString());
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            } else if ("dpi".equals(item.getFieldName())) {
+                dpi = Float.parseFloat(item.getString().trim());
+            }
         }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+
         long t = System.currentTimeMillis();
         byte[] result = svc.convertToImages(pdf, dpi);
         saveHistory(user, "convert", name, "images.zip", System.currentTimeMillis() - t);
+
         res.setContentType("application/zip");
         res.setHeader("Content-Disposition", "attachment; filename=\"images.zip\"");
         res.setContentLength(result.length);
@@ -165,15 +207,23 @@ public class PDFServlet extends HttpServlet {
                          PDFOperations svc, User user) throws Exception {
         List<FileItem> items = parse(req);
         byte[] pdf = null; String name = "doc.pdf";
-        for (FileItem i : items)
-            if (!i.isFormField() && i.getName().endsWith(".pdf")) { pdf = i.get(); name = i.getName(); }
-        if (pdf == null) throw new Exception("Aucun fichier selectionne.");
+
+        for (FileItem item : items) {
+            if (!item.isFormField() && item.getSize() > 0) {
+                pdf = item.get(); name = item.getName();
+            }
+        }
+
+        if (pdf == null) { error(req, res, "Aucun fichier sélectionné."); return; }
+
         long t = System.currentTimeMillis();
         String text = svc.extractText(pdf);
         saveHistory(user, "text", name, "text.txt", System.currentTimeMillis() - t);
+
         req.setAttribute("text", text);
         req.setAttribute("filename", name);
         req.setAttribute("corbaOk", true);
+        req.setAttribute("username", req.getSession().getAttribute("username"));
         req.getRequestDispatcher("/WEB-INF/pages/op_text_result.jsp").forward(req, res);
     }
 
@@ -182,22 +232,26 @@ public class PDFServlet extends HttpServlet {
         String title   = req.getParameter("title");
         String content = req.getParameter("content");
         String author  = req.getParameter("author");
-        if (title == null || title.isEmpty())   throw new Exception("Titre requis.");
-        if (content == null || content.isEmpty()) throw new Exception("Contenu requis.");
-        if (author == null || author.isEmpty()) author = user.getUsername();
+
+        if (title == null || title.trim().isEmpty()) {
+            error(req, res, "Le titre est requis."); return;
+        }
+        if (content == null || content.trim().isEmpty()) {
+            error(req, res, "Le contenu est requis."); return;
+        }
+        if (author == null || author.trim().isEmpty()) author = user.getUsername();
+
         long t = System.currentTimeMillis();
-        byte[] result = svc.createPDF(title, content, author);
-        saveHistory(user, "create", "saisie manuelle",
-                    title.replaceAll("[^a-zA-Z0-9]", "_") + ".pdf",
-                    System.currentTimeMillis() - t);
-        sendPDF(res, result, title.replaceAll("[^a-zA-Z0-9]", "_") + ".pdf");
+        byte[] result = svc.createPDF(title.trim(), content, author.trim());
+        saveHistory(user, "create", "saisie", title + ".pdf", System.currentTimeMillis() - t);
+        sendPDF(res, result, title.trim().replaceAll("[^a-zA-Z0-9]", "_") + ".pdf");
     }
 
     // ── Helpers ─────────────────────────────────────
 
     private String getOp(HttpServletRequest req) {
         String p = req.getPathInfo();
-        return p != null ? p.replace("/", "") : "merge";
+        return (p != null ? p : "/").replace("/", "");
     }
 
     private boolean checkSession(HttpServletRequest req, HttpServletResponse res)
@@ -211,11 +265,12 @@ public class PDFServlet extends HttpServlet {
     }
 
     private List<FileItem> parse(HttpServletRequest req) throws Exception {
-        DiskFileItemFactory f = new DiskFileItemFactory();
-        f.setSizeThreshold(10 * 1024 * 1024);
-        ServletFileUpload up = new ServletFileUpload(f);
-        up.setFileSizeMax(50 * 1024 * 1024L);
-        return up.parseRequest(req);
+        DiskFileItemFactory factory = new DiskFileItemFactory();
+        factory.setSizeThreshold(10 * 1024 * 1024);
+        ServletFileUpload upload = new ServletFileUpload(factory);
+        upload.setFileSizeMax(50 * 1024 * 1024L);
+        upload.setSizeMax(100 * 1024 * 1024L);
+        return upload.parseRequest(req);
     }
 
     private void sendPDF(HttpServletResponse res, byte[] data, String name) throws IOException {
@@ -226,10 +281,10 @@ public class PDFServlet extends HttpServlet {
     }
 
     private int[] parsePages(String s) throws Exception {
-        if (s == null || s.trim().isEmpty()) throw new Exception("Pages requises (ex: 1,3,5).");
         String[] parts = s.split("[,\\s]+");
         int[] r = new int[parts.length];
-        for (int i = 0; i < parts.length; i++) r[i] = Integer.parseInt(parts[i].trim());
+        for (int i = 0; i < parts.length; i++)
+            r[i] = Integer.parseInt(parts[i].trim());
         return r;
     }
 
@@ -245,6 +300,7 @@ public class PDFServlet extends HttpServlet {
             throws ServletException, IOException {
         req.setAttribute("error", msg);
         req.setAttribute("corbaOk", false);
+        req.setAttribute("username", req.getSession().getAttribute("username"));
         req.getRequestDispatcher("/WEB-INF/pages/error.jsp").forward(req, res);
     }
 }
